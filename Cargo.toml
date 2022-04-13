@@ -1,0 +1,57 @@
+[package]
+name = "spectral"
+version = "0.1.0"
+edition = "2021"
+
+# None of these settings are required for correctness, although they
+# have been carefully chosen for runtime performance, and you should
+# think twice before overriding them.
+# |
+# V
+[profile.release]
+# Do not parallelise compilation/optimization. At a high level, this
+# allows sharing of semantic information that is otherwise possible.
+codegen-units = 1
+# Policy: Avoid computation.
+debug-assertions = false
+# This configures the cost threshold for inlining code, 0-5. In line
+# with our documented principles, we inline in all but extreme cases.
+inline-threshold = 512
+# LTO enables optimising linked code. 'thin' will produce 90% of the
+# gains at ~50% of the (build time) cost, so you may want to use it.
+lto = 'fat'
+# Policy: Avoid computation.
+no-redzone = 'no'
+# You can probably see what our preference is here.
+opt-level = 3
+# Policy: Avoid computation.
+overflow-checks = false
+# Reduce See Rust RFC 1513.
+panic = 'abort'
+# This is important.
+# Analysis passes:
+# - da: (memory) dependency analysis (of instructions)
+# - memdep: same as above
+# - scalar-evolution: analyse scalar uses (e.g. nums in loops)
+# - scev-aa: scalar-evolution-based alias checking of vars
+# Optimization passes:
+# - sccp: constant-ise code where provable
+#   - must precede `adce`/`dce`
+# - adce: aggressive dead code elimination
+# - constmerge: merge duplicate consts
+# - die: dead instruction elimination
+# - dse: dead store elimination
+# - licm: move instrs out of loops, or amortise, where poss
+# - mem2reg: replace `alloca` w register assignments where poss
+# - prune-eh: remove exception handling if provably unreachable
+# - simplifycfg: do a final cleanup pass
+#   - must come after all other passes, or else not at all
+passes = '-da -memdep -scalar-evolution -scev-aa -sccp -adce -constmerge -die -dse -licm -mem2reg -prune-eh -simplifycfg'
+# Obviously: optimize for the target CPU. Equally obviously: if you
+# are cross-compiling, specify the final `--target` when building.
+target-cpu = 'native'
+# Almost the same as above, but addresses instruction scheduling.
+tune-cpu = 'native'
+
+
+[dependencies]
