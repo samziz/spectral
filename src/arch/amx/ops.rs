@@ -1,48 +1,36 @@
-use std::arch::asm;
-use std::marker::PhantomData;
+use core::arch::asm;
+use core::marker::PhantomData;
 
-/// Emit an AMX instruction with an input register.
-pub unsafe fn op_in<const OP: u8>(operand: u64) {
-    asm!(
-        //
-        // 0x00201000 | ((op & 0x1F) << 5) | (operand & 0x1F)
-        //
-        // See the unofficial docs:
-        // https://gist.github.com/dougallj/7a75a3be1ec69ca550e7c36dc75e0d6f#file-aarch64_amx-py-L53
-        //
-        // Notes:
-        // - '{op} << 5': Shift opcode to the eighth and final bit.
-        // - for 'operand', we need to sneak it in as a num, so we rebuild it with:
-        //   - '& 0xf': mod 16 / remainder over 16 (16= 10 in hex, so to speak)
-        //   - '>> 4': div 16 to nearest int
-        //   - take (mod16 * 10[i.e. 16]) + div16 to get the original
-        ".word 0x00201000 + ({op} << 5) + (0{operand} & 0xf) + (0{operand} >> 4) * 10",
-        op = const OP,
-        operand = in(reg) operand,
-        options(nostack, preserves_flags),
-    );
+#[repr(u8)]
+pub enum RegSet {
+    X,
+    Y,
+    Z,
 }
 
-/// Emit an AMX instruction with a 5-bit immediate.
-pub unsafe fn op_imm<const OP: u8, const OPERAND: u8>() {
-    asm!(
-        ".word 0x00201000 + ({op} << 5) + {operand}",
-        op = const OP,
-        operand = const OPERAND,
-        options(nostack, preserves_flags),
-    );
+/// Load 64 bits from register `x`/`y`, to a 64x64bit array.
+pub fn ldx(reg: u64, data: &[u8; 64]) -> () {
+    let ptr: *const [u64; 64] = &data;
+    let operand = fmt_offset_ptr::<64>(reg, ptr as u64);
+    unsafe { op_in::<0>(operand) };
 }
 
-pub unsafe fn ldx(v: u64) {
-    op_in::<0>(v);
+pub unsafe fn ldy(reg: u64, data: &[u8; 64]) {
+    let ptr: *const [u64; 64] = &data;
+    let operand = fmt_offset_ptr::<64>(reg, ptr as u64);
+    unsafe { op_in::<1>(operand) };
 }
 
-pub unsafe fn ldy(v: u64) {
-    op_in::<1>(v);
-}
+pub fn stx(reg: u64) -> [u8; 64] {
+    let ptr: *mut [u64; 64] = &mut [0; 64];
 
-pub unsafe fn stx(v: u64) {
-    op_in::<2>(v);
+    let operand = fmt_offset_ptr::<64>(reg, ptr as u64);
+
+    unsafe {
+        op_in::<2>(operand);
+    }
+
+    ptr
 }
 
 pub unsafe fn sty(v: u64) {
@@ -160,69 +148,47 @@ impl<'a> AmxOps<'a> {
     }
 }
 
-unsafe fn ldx(&mut self, v: u64, ptr: *mut ()) {
-    ldx(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
+/// # Primitive functions
+///
+/// These are the inner, private functions on which the rest of the
+/// `ops` module relies.
+
+/// Emit an AMX instruction with an input register.
+fn op_in<const OP: u8>(operand: u64) {
+    asm!(
+        // The convention is: `0x00201000 | ((op & 0x1F) << 5) | (operand & 0x1F)`.
+        // Note that this differs because we have to encode `operand` as (what the
+        // processor interprets as) a hexadecimal number.
+        // https://gist.github.com/dougallj/7a75a3be1ec69ca550e7c36dc75e0d6f#file-aarch64_amx-py-L53.
+        ".word 0x00201000 + ({op} << 5) + (0{operand} & 0xf) + (0{operand} >> 4) * 10",
+        op = const OP,
+        operand = in(reg) operand,
+        options(nostack, preserves_flags),
+    );
 }
-unsafe fn ldy(&mut self, v: u64, ptr: *mut ()) {
-    ldy(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
+
+/// Emit an AMX instruction with a 5-bit immediate.
+fn op_imm<const OP: u8, const OPERAND: u8>() {
+    asm!(
+        ".word 0x00201000 + ({op} << 5) + {operand}",
+        op = const OP,
+        operand = const OPERAND,
+        options(nostack, preserves_flags),
+    );
 }
-unsafe fn stx(&mut self, v: u64, ptr: *mut ()) {
-    stx(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
+
+/// Encode the offset and size into one 64bit int, as is required by
+/// the undocumented AMX API:
+fn fmt_offset<const SIZE: u64>(offset: u64) -> u64 {
+    debug_assert!(offset < 64);
+
+    (offset << 56) | (SIZE << 62)
 }
-unsafe fn sty(&mut self, v: u64, ptr: *mut ()) {
-    sty(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
-}
-unsafe fn ldz(&mut self, v: u64, ptr: *mut ()) {
-    ldz(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
-}
-unsafe fn stz(&mut self, v: u64, ptr: *mut ()) {
-    stz(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
-}
-unsafe fn ldzi(&mut self, v: u64, ptr: *mut ()) {
-    ldzi(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
-}
-unsafe fn stzi(&mut self, v: u64, ptr: *mut ()) {
-    stzi(v | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF));
-}
-fn extrx(&mut self, v: u64) {
-    unsafe { extrx(v) };
-}
-fn extry(&mut self, v: u64) {
-    unsafe { extry(v) };
-}
-fn fma64(&mut self, v: u64) {
-    unsafe { fma64(v) };
-}
-fn fms64(&mut self, v: u64) {
-    unsafe { fms64(v) };
-}
-fn fma32(&mut self, v: u64) {
-    unsafe { fma32(v) };
-}
-fn fms32(&mut self, v: u64) {
-    unsafe { fms32(v) };
-}
-fn mac16(&mut self, v: u64) {
-    unsafe { mac16(v) };
-}
-fn fma16(&mut self, v: u64) {
-    unsafe { fma16(v) };
-}
-fn fms16(&mut self, v: u64) {
-    unsafe { fms16(v) };
-}
-fn vecint(&mut self, v: u64) {
-    unsafe { vecint(v) };
-}
-fn vecfp(&mut self, v: u64) {
-    unsafe { vecfp(v) };
-}
-fn matint(&mut self, v: u64) {
-    unsafe { matint(v) };
-}
-fn matfp(&mut self, v: u64) {
-    unsafe { matfp(v) };
-}
-fn genlut(&mut self, v: u64) {
-    unsafe { genlut(v) };
+
+/// Encode the offset and size AND pointer into one 64bit int, as is
+/// required by the undocumented AMX API:
+fn fmt_offset_ptr<const SIZE: u64>(offset: u64, ptr: u64) -> u64 {
+    debug_assert!(offset < 64);
+
+    (offset << 56) | (SIZE << 62) | (ptr as u64 & 0x00FF_FFFF_FFFF_FFFF)
 }

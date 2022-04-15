@@ -10,14 +10,16 @@
 //!
 //! If you're unsure, then this is not for you.
 
+#![no_std]
 #![feature(asm)]
 #![feature(asm_const)]
 #![feature(inline_const)]
 #![feature(stdsimd)]
-
-mod arch;
+#![feature(thread_local)]
 
 #[cfg(feature = "iter")] pub mod iter;
+
+mod arch;
 
 pub struct Matrix<const N: usize, const M: usize>();
 

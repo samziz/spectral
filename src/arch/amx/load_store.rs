@@ -13,12 +13,6 @@ enum MemSize {
     _128 = 1,
 }
 
-pub fn encode(offset: u64, size: MemSize) -> u64 {
-    debug_assert!(offset < 64);
-
-    (offset << 56) | ((size as u64) << 62)
-}
-
 /// Register row types supporting 512- and 1024-bit operations.
 ///
 /// [`Amx`] should be used as a wrapper, rather than calling this directly.

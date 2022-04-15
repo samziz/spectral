@@ -1,12 +1,9 @@
-#![cfg_attr(feature = "doc_cfg", feature(doc_cfg))]
-
 mod load_store;
 mod lookup_t;
 mod ops;
 mod regs;
 
-use std::cell::Cell;
-use std::ops::{Deref, DerefMut};
+use core::cell::Cell;
 
 use self::load_store::LoadStore;
 use self::regs::ZVec;
@@ -14,9 +11,8 @@ use self::regs::ZVec;
 // AMX must be enabled before use, but should only be enabled one
 // time per thread. We check this before initialising an instance
 // of [`AmxHandle`], to enforce this invariant.
-thread_local! {
-    static AMX_ENABLED: Cell<bool> = Cell::new(false);
-}
+#[thread_local]
+static AMX_ENABLED: Cell<bool> = Cell::new(false);
 
 /// A handle represents an initialised AMX instance in this thread.
 /// It is scoped to a particular thread and thus specifically does
@@ -91,8 +87,10 @@ impl Drop for AmxHandle {
 /// (the low-level wrapper), which has a blanket impl of `Amx`.
 pub trait Amx: AmxOps {
     /// Load 512 bits (64 bytes) from memory to the specified register row.
-    unsafe fn load512<T>(&mut self, ptr: *const T, row: impl LoadStore) {
-        row.load512(self, ptr);
+    unsafe fn load512<T>(&mut self, offset: usize, ptr: *const T) {
+        debug_assert!(index < 8);
+
+        ops::ldx(encode(offset, size), ptr);
     }
 
     /// Load 1024 bits (128 bytes) from memory to the specified register row
