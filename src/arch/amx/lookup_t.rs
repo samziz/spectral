@@ -1,7 +1,7 @@
 //! Lookup tables. Includes a wrapper for `genlut`.
 
 use super::{
-    regs::{XBytes, XRow, YBytes, YRow, ZRow},
+    regs::{XBits, XVec, YBits, YVec, ZVec},
     AmxOps,
 };
 
@@ -119,7 +119,7 @@ pub trait LutIn {
     fn as_genlut_input_param(&self) -> u64;
 }
 
-impl LutIn for XBytes {
+impl LutIn for XBits {
     #[inline(always)]
     fn as_genlut_input_param(&self) -> u64 {
         debug_assert!(self.0 < 512);
@@ -127,7 +127,7 @@ impl LutIn for XBytes {
     }
 }
 
-impl LutIn for YBytes {
+impl LutIn for YBits {
     #[inline(always)]
     fn as_genlut_input_param(&self) -> u64 {
         debug_assert!(self.0 < 512);
@@ -152,7 +152,7 @@ pub trait LutOut {
     fn as_genlut_output_param(&self) -> u64;
 }
 
-impl LutOut for XRow {
+impl LutOut for XVec {
     #[inline(always)]
     fn as_genlut_output_param(&self) -> u64 {
         debug_assert!(self.0 < 8);
@@ -160,7 +160,7 @@ impl LutOut for XRow {
     }
 }
 
-impl LutOut for YRow {
+impl LutOut for YVec {
     #[inline(always)]
     fn as_genlut_output_param(&self) -> u64 {
         debug_assert!(self.0 < 8);
@@ -168,7 +168,7 @@ impl LutOut for YRow {
     }
 }
 
-impl LutOut for ZRow {
+impl LutOut for ZVec {
     #[inline(always)]
     fn as_genlut_output_param(&self) -> u64 {
         debug_assert!(self.0 < 64);
@@ -190,7 +190,7 @@ impl<Left: LutOut, Right: LutOut> LutOut for either::Either<Left, Right> {
 pub fn lut(
     ops: &mut (impl AmxOps + ?Sized),
     input: impl LutIn,
-    XRow(table_row): XRow,
+    XVec(table_row): XVec,
     output: impl LutOut,
     mode: impl LookupT,
 ) {

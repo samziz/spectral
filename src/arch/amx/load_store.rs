@@ -1,5 +1,5 @@
 use super::{
-    regs::{XRow, YRow, ZRow},
+    regs::{XVec, YVec, ZVec},
     AmxOps,
 };
 
@@ -13,20 +13,15 @@ enum MemSize {
     _128 = 1,
 }
 
-impl MemArgs {
-    #[inline]
-    fn encode(offset: u64, size: MemSize) -> u64 {
-        debug_assert!(offset < 64);
+pub fn encode(offset: u64, size: MemSize) -> u64 {
+    debug_assert!(offset < 64);
 
-        (offset << 56) | ((size as u64) << 62)
-    }
+    (offset << 56) | ((size as u64) << 62)
 }
 
 /// Register row types supporting 512- and 1024-bit operations.
 ///
 /// [`Amx`] should be used as a wrapper, rather than calling this directly.
-///
-/// [`Amx`]: crate::Amx
 pub trait LoadStore {
     /// Load 512 bits (64 bytes) from memory to the register.
     unsafe fn load512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T);
@@ -43,167 +38,81 @@ pub trait LoadStore {
     unsafe fn store1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T);
 }
 
-impl LoadStore for XRow {
+impl LoadStore for XVec {
     unsafe fn load512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.ldx(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_64,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.ldx(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn store512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.stx(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_64,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.stx(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn load1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.ldx(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_128,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.ldx(encode(index as u64, MemSize::_128), ptr as *mut ());
     }
 
-    #[inline(always)]
-    #[track_caller]
     unsafe fn store1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.stx(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_128,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.stx(encode(index as u64, MemSize::_128), ptr as *mut ());
     }
 }
 
-impl LoadStore for YRow {
+impl LoadStore for YVec {
     unsafe fn load512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.ldy(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_64,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.ldy(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn store512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.sty(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_64,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.sty(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn load1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.ldy(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_128,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.ldy(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn store1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T) {
         let index = self.0;
         debug_assert!(index < 8);
-        ops.sty(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_128,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.sty(encode(index as u64, MemSize::_128), ptr as *mut ());
     }
 }
 
-impl LoadStore for ZRow {
+impl LoadStore for ZVec {
     unsafe fn load512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T) {
         let index = self.0;
         debug_assert!(index < 64);
-        ops.ldz(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_64,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.ldz(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn store512<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T) {
         let index = self.0;
         debug_assert!(index < 64);
-        ops.stz(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_64,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.stz(encode(index as u64, MemSize::_64), ptr as *mut ());
     }
 
     unsafe fn load1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *const T) {
         let index = self.0;
         debug_assert!(index < 64);
-        ops.ldz(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_128,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.ldz(encode(index as u64, MemSize::_128), ptr as *mut ());
     }
 
     unsafe fn store1024_aligned<T>(&self, ops: &mut (impl AmxOps + ?Sized), ptr: *mut T) {
         let index = self.0;
         debug_assert!(index < 64);
-        ops.stz(
-            MemArgs {
-                reg_offset: index as u64,
-                size: MemSize::_128,
-            }
-            .encode(),
-            ptr as *mut (),
-        );
+        ops.stz(encode(index as u64, MemSize::_128), ptr as *mut ());
     }
 }
 
@@ -213,34 +122,20 @@ impl LoadStore for ZRow {
 pub unsafe fn load512_z_interleaved<T>(
     ops: &mut (impl AmxOps + ?Sized),
     ptr: *const T,
-    ZRow(index): ZRow,
+    ZVec(index): ZVec,
 ) {
     debug_assert!(index < 64);
-    ops.ldzi(
-        MemArgs {
-            reg_offset: index as u64,
-            size: MemSize::_64,
-        }
-        .encode(),
-        ptr as *mut (),
-    );
+    ops.ldzi(encode(index as u64, MemSize::_64), ptr as *mut ());
 }
 
-/// Store 512 bits (64 bytes) `z[index][0..64]` to memory with interleaving.
+/// Store 512 bits (64 bytes) `ptr[offset][0..64]` to memory with interleaving.
 ///
 /// `index` must be in range `0..64`.
 pub unsafe fn store512_z_interleaved<T>(
     ops: &mut (impl AmxOps + ?Sized),
     ptr: *mut T,
-    ZRow(index): ZRow,
+    ZVec(index): ZVec,
 ) {
     debug_assert!(index < 64);
-    ops.stzi(
-        MemArgs {
-            reg_offset: index as u64,
-            size: MemSize::_64,
-        }
-        .encode(),
-        ptr as *mut (),
-    );
+    ops.stzi(encode(index as u64, MemSize::_64), ptr as *mut ());
 }

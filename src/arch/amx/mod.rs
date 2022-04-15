@@ -1,14 +1,88 @@
 #![cfg_attr(feature = "doc_cfg", feature(doc_cfg))]
 
-mod init;
 mod load_store;
 mod lookup_t;
 mod ops;
 mod regs;
 
-use load_store::LoadStore;
+use std::cell::Cell;
+use std::ops::{Deref, DerefMut};
 
-use self::regs::ZRow;
+use self::load_store::LoadStore;
+use self::regs::ZVec;
+
+// AMX must be enabled before use, but should only be enabled one
+// time per thread. We check this before initialising an instance
+// of [`AmxHandle`], to enforce this invariant.
+thread_local! {
+    static AMX_ENABLED: Cell<bool> = Cell::new(false);
+}
+
+/// A handle represents an initialised AMX instance in this thread.
+/// It is scoped to a particular thread and thus specifically does
+/// not implement either [`Send`] or [`Sync`].
+pub struct AmxHandle;
+
+/// This error type is returned by [`Amx::new`], and represents any
+/// error conditions which prevent us from initialising AMX.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum AmxErr {
+    /// This thread has already initialised AMX.
+    Exists,
+    /// This target does not support AMX.
+    Unsupported,
+}
+
+impl AmxHandle {
+    /// Construct a brand new instance of [`AmxHandle`] by enabling AMX
+    /// for the current thread. Note: This is the only way to obtain an
+    /// [`AmxHandle`], which guarantees the init-each-thread invariant.
+    pub fn enable() -> Result<Self, AmxErr> {
+        if cfg!(not(all(
+            target_arch = "aarch64",
+            target_os = "macos",
+            target_pointer_width = "64"
+        ))) {
+            // Target is not compatible. Return an Err().
+            Err(AmxErr::Unsupported)
+        } else {
+            use std::arch::is_aarch64_feature_detected;
+
+            if !is_aarch64_feature_detected!("asimd") {
+                // Fail. This is otherwise compatible, but we're
+                // told the 'advanced SIMD' exts are unsupported.
+                Err(AmxErr::Unsupported)
+            } else {
+                if AMX_ENABLED.with(|x| x.get()) {
+                    // AMX is already enabled. Return an Err().
+                    Err(AmxErr::Exists)
+                } else {
+                    // Safe: We finally know that AMX is supported and
+                    // not already enabled ITT, so enable it.
+                    unsafe { ops::set() };
+
+                    Ok(Self)
+                }
+            }
+        }
+    }
+
+    /// Disable AMX for the current thread. This must be private, and
+    /// must be an instance method, so we can count on the invariant
+    /// that it cannot be called without AMX having been initialised.
+    fn disable(self) {
+        // Safe: AMX is supported & has been initialised (see above).
+        unsafe { ops::clr() };
+        AMX_ENABLED.with(|x| x.set(false));
+    }
+}
+
+impl Drop for AmxHandle {
+    fn drop(&mut self) {
+        self.disable();
+    }
+}
 
 /// A high-level wrapper for AMX instructions.
 ///
@@ -44,14 +118,14 @@ pub trait Amx: AmxOps {
     /// Load 512 bits (64 bytes) from memory to `z[index][0..64]` with interleaving.
     ///
     /// `index` must be in range `0..64`.
-    unsafe fn load512_interleaved<T>(&mut self, ptr: *const T, row: ZRow) {
+    unsafe fn load512_interleaved<T>(&mut self, ptr: *const T, row: ZVec) {
         load_store::load512_z_interleaved(self, ptr, row);
     }
 
     /// Store 512 bits (64 bytes) `z[index][0..64]` to memory with interleaving.
     ///
     /// `index` must be in range `0..64`.
-    unsafe fn store512_interleaved<T>(&mut self, ptr: *mut T, row: ZRow) {
+    unsafe fn store512_interleaved<T>(&mut self, ptr: *mut T, row: ZVec) {
         load_store::store512_z_interleaved(self, ptr, row);
     }
 
@@ -63,7 +137,7 @@ pub trait Amx: AmxOps {
             unsafe {
                 self.store512(
                     (ret.as_mut_ptr() as *mut u8).offset(i as isize * 64),
-                    regs::XRow(i),
+                    regs::XVec(i),
                 )
             };
         }
@@ -79,7 +153,7 @@ pub trait Amx: AmxOps {
             unsafe {
                 self.store512(
                     (ret.as_mut_ptr() as *mut u8).offset(i as isize * 64),
-                    regs::YRow(i),
+                    regs::YVec(i),
                 )
             };
         }
@@ -95,7 +169,7 @@ pub trait Amx: AmxOps {
             unsafe {
                 self.store512(
                     (ret.as_mut_ptr() as *mut u8).offset(i as isize * 64),
-                    ZRow(i),
+                    ZVec(i),
                 )
             };
         }
@@ -113,9 +187,9 @@ pub trait Amx: AmxOps {
     /// be taken into consideration.
     fn outer_product_i16_xy_to_z(
         &mut self,
-        x_offset_bytes: Option<regs::XBytes>,
-        y_offset_bytes: Option<regs::YBytes>,
-        z_index: ZRow,
+        x_offset_bytes: Option<regs::XBits>,
+        y_offset_bytes: Option<regs::YBits>,
+        z_index: ZVec,
         accumulate: bool,
     ) {
         let z_index = z_index.0;
@@ -138,7 +212,7 @@ pub trait Amx: AmxOps {
     fn lut(
         &mut self,
         input: impl lookup_t::LutIn,
-        table: regs::XRow,
+        table: regs::XVec,
         output: impl lookup_t::LutOut,
         ty: impl lookup_t::LookupT,
     ) {
@@ -180,79 +254,4 @@ pub unsafe trait AmxOps {
     fn matint(&mut self, x: u64);
     fn matfp(&mut self, x: u64);
     fn genlut(&mut self, x: u64);
-}
-
-// Safe: Just forwarding the calls.
-unsafe impl<T: ?Sized + AmxOps> AmxOps for &'_ mut T {
-    /// Unsafe functions.
-
-    unsafe fn ldx(&mut self, x: u64, ptr: *mut ()) {
-        (**self).ldx(x, ptr)
-    }
-    unsafe fn ldy(&mut self, x: u64, ptr: *mut ()) {
-        (**self).ldy(x, ptr)
-    }
-    unsafe fn stx(&mut self, x: u64, ptr: *mut ()) {
-        (**self).stx(x, ptr)
-    }
-    unsafe fn sty(&mut self, x: u64, ptr: *mut ()) {
-        (**self).sty(x, ptr)
-    }
-    unsafe fn ldz(&mut self, x: u64, ptr: *mut ()) {
-        (**self).ldz(x, ptr)
-    }
-    unsafe fn stz(&mut self, x: u64, ptr: *mut ()) {
-        (**self).stz(x, ptr)
-    }
-    unsafe fn ldzi(&mut self, x: u64, ptr: *mut ()) {
-        (**self).ldzi(x, ptr)
-    }
-    unsafe fn stzi(&mut self, x: u64, ptr: *mut ()) {
-        (**self).stzi(x, ptr)
-    }
-
-    /// Safe functions.
-
-    fn extrx(&mut self, x: u64) {
-        (**self).extrx(x)
-    }
-    fn extry(&mut self, x: u64) {
-        (**self).extry(x)
-    }
-    fn fma64(&mut self, x: u64) {
-        (**self).fma64(x)
-    }
-    fn fms64(&mut self, x: u64) {
-        (**self).fms64(x)
-    }
-    fn fma32(&mut self, x: u64) {
-        (**self).fma32(x)
-    }
-    fn fms32(&mut self, x: u64) {
-        (**self).fms32(x)
-    }
-    fn mac16(&mut self, x: u64) {
-        (**self).mac16(x)
-    }
-    fn fma16(&mut self, x: u64) {
-        (**self).fma16(x)
-    }
-    fn fms16(&mut self, x: u64) {
-        (**self).fms16(x)
-    }
-    fn vecint(&mut self, x: u64) {
-        (**self).vecint(x)
-    }
-    fn vecfp(&mut self, x: u64) {
-        (**self).vecfp(x)
-    }
-    fn matint(&mut self, x: u64) {
-        (**self).matint(x)
-    }
-    fn matfp(&mut self, x: u64) {
-        (**self).matfp(x)
-    }
-    fn genlut(&mut self, x: u64) {
-        (**self).genlut(x)
-    }
 }
