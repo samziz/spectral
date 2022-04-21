@@ -52,6 +52,3 @@ passes = '-da -memdep -scalar-evolution -scev-aa -sccp -adce -constmerge -die -d
 target-cpu = 'native'
 # Almost the same as above, but addresses instruction scheduling.
 tune-cpu = 'native'
-
-
-[dependencies]

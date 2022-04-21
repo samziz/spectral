@@ -1,0 +1,16 @@
+# imports
+group_imports = "StdExternalCrate"
+imports_granularity = "Crate"
+
+# line width
+max_width = 110
+# specific line-type widths (% of base)
+fn_call_width = 80
+attr_fn_like_width = 80
+chain_width = 80
+inline_attribute_width = 80
+struct_lit_width = 60
+struct_variant_width = 60
+
+# zzzmiscellaneous
+blank_lines_upper_bound = 2
