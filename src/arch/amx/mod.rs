@@ -1,6 +1,9 @@
-mod ops;
+mod bus;
+mod regs;
 
 use core::cell::Cell;
+
+pub use regs::RegSet;
 
 /// This module is a low-level wrapper over the M1's AMX coprocessor,
 /// for fast large linear algebra over vectors and matrices. Its use

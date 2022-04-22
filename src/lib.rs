@@ -13,26 +13,24 @@
 //! Spectral is written with `no_std` so that you don't need to use
 //! std. It also tends to light up most heap allocations in luminol.
 #![no_std]
+//! We allow `incomplete_features` in order to unblock the unstable
+//! feature `generic_const_exprs` (of which more below).
+#![allow(incomplete_features)]
 //! It does rely on 5 features, 4 to do with asm and const generics,
 //! and `thread_local` to enable that macro in `core` (the std lib).
-//! All of these are performance aids, and are encouraged anyway.
+//! All of these are performance aids, and are encouraged anyway. NB
+//! `adt_const_params` is unstable, requiring `incomplete_features`.
 #![feature(asm)]
 #![feature(asm_const)]
+#![feature(generic_const_exprs)]
 #![feature(inline_const)]
 #![feature(thread_local)]
 
+pub mod alg;
 #[cfg(feature = "iter")] pub mod iter;
 
 mod arch;
-
-/// A matrix capable of performant algebraic operations. Its actual
-/// implementation will differ based on the target triple.
-pub struct Matrix {
-    /// Height of the matrix (`r` = rows).
-    h: usize,
-    /// Width of the matrix (`c` = columns).
-    w: usize,
-}
+mod struc;
 
 /// The actual contents of a matrix are defined as a separate type,
 /// optional on the matrix. This is done for several reasons: first
