@@ -1,6 +1,6 @@
 # imports
 group_imports = "StdExternalCrate"
-imports_granularity = "Crate"
+imports_granularity = "Module"
 
 # line width
 max_width = 110
