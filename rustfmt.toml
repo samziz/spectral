@@ -7,7 +7,7 @@ max_width = 110
 # specific line-type widths (% of base)
 fn_call_width = 80
 attr_fn_like_width = 80
-chain_width = 80
+chain_width = 50
 inline_attribute_width = 80
 struct_lit_width = 60
 struct_variant_width = 60
