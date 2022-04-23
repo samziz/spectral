@@ -8,23 +8,26 @@
 //! - Most of your work is pure computation on vectors or matrices.
 //! - You want to exploit advanced extensions: SIMD, NEON, AMX, etc.
 //!
-//! If you're unsure, then this is not for you.
+//! **If you don't know if this is what you need, then it's not.**
 
-//! Spectral is written with `no_std` so that you don't need to use
-//! std. It also tends to light up most heap allocations in luminol.
+//! Spectral is built with `no_std` so a user can build with `no_std`.
+//! It's as simple as that. For context on forgoing `std`, see [here][0].
+//!
+//! [0]: https://docs.rust-embedded.org/book/intro/no-std.html
 #![no_std]
 //! We allow `incomplete_features` in order to unblock the unstable
 //! feature `generic_const_exprs` (of which more below).
 #![allow(incomplete_features)]
-//! It does rely on 5 features, 4 to do with asm and const generics,
-//! and `thread_local` to enable that macro in `core` (the std lib).
-//! All of these are performance aids, and are encouraged anyway. NB
-//! `adt_const_params` is unstable, requiring `incomplete_features`.
+//! It does rely on 7 features, 6 for asm & const generics, 1 being
+//! `thread_local` to export that macro from [`core`]. All are perf
+//! or ergonomics wins anyway.
 #![feature(asm)]
 #![feature(asm_const)]
+#![feature(core_intrinsics)]
 #![feature(generic_const_exprs)]
 #![feature(inline_const)]
 #![feature(thread_local)]
+#![feature(trait_alias)]
 
 pub mod alg;
 #[cfg(feature = "iter")] pub mod iter;
