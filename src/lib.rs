@@ -29,6 +29,10 @@
 #![feature(thread_local)]
 #![feature(trait_alias)]
 
+/// We enable the `alloc` crate, as well as `core`, so that the std
+/// lib is available
+extern crate alloc;
+
 pub mod alg;
 #[cfg(feature = "iter")] pub mod iter;
 
