@@ -30,7 +30,7 @@ pub mod alg;
 #[cfg(feature = "iter")] pub mod iter;
 
 mod arch;
-mod struc;
+mod invar;
 
 /// The actual contents of a matrix are defined as a separate type,
 /// optional on the matrix. This is done for several reasons: first
