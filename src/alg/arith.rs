@@ -1,6 +1,5 @@
-use core::{intrinsics, ops};
+use core::ops;
 
-use crate::invar::{Float, Int, Scalar};
 use crate::space::Tensor;
 
 impl<S> core::ops::Add for Tensor<S>
