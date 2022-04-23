@@ -31,6 +31,7 @@ pub mod alg;
 
 mod arch;
 mod invar;
+mod space;
 
 /// The actual contents of a matrix are defined as a separate type,
 /// optional on the matrix. This is done for several reasons: first
